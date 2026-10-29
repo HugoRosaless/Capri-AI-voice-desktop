@@ -95,6 +95,15 @@ export class Chat {
     this.onMessage = null; // () => void: you said something to her
     this.waitingWhen = null; // a reminder you asked for without saying when: { text, until }
     host.onChatDelta(({ id, text }) => this.onDelta(id, text));
+    // modo agente (main/agent.js): lo que va haciendo, y «¿puedo…?» antes de lo delicado
+    this.pendingConfirm = null;
+    host.onChatProgress?.(({ id, text }) => { if (id === this.turn && !this.answer) this.panel.stream(text); });
+    host.onAgentConfirm?.(({ cid, question }) => {
+      this.pendingConfirm = cid;
+      this.panel.stream(question);
+      this.host.say?.(question.replace(/\{.*$/, ''));
+      this.panel.setActions([{ id: 'yes', label: 'Sí, hazlo', primary: true }, { id: 'no', label: 'No' }], (choice) => this.answerConfirm(choice === 'yes'));
+    });
   }
 
   get t() {
@@ -290,6 +299,22 @@ export class Chat {
     this.panel.stream(res.line, { done: true });
     this.panel.setFace(actionFace(res));
     this.panel.setChatBusy(false);
+  }
+
+  answerConfirm(ok) {
+    if (!this.pendingConfirm) return;
+    this.host.agentAnswer(this.pendingConfirm, ok);
+    this.pendingConfirm = null;
+    this.panel.setActions([]);
+  }
+
+  // «sí» / «no» dicho en voz alta mientras pregunta: true si era eso
+  voiceConfirm(text) {
+    if (!this.pendingConfirm) return false;
+    const t = String(text || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').trim();
+    if (/^(si|vale|ok|okay|adelante|hazlo|claro|venga|dale|confirmo)\b/.test(t)) { this.answerConfirm(true); return true; }
+    if (/^(no|para|cancela|espera|mejor no|nada)\b/.test(t)) { this.answerConfirm(false); return true; }
+    return false;
   }
 
   // an answer of hers, kept with your message before it

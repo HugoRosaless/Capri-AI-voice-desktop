@@ -61,6 +61,18 @@ Para que se abra al encender el PC: clic derecho en Capri › **Iniciar con Wind
   Luego «Capri, modo relax». «¿Qué órdenes te he enseñado?», «olvida la orden modo relax».
 - **Recuerdos**: cada 4 mensajes apunta lo que vale la pena recordar de ti. «Olvida lo que sabes de mí» lo borra.
 
+## Su cerebro: modo agente, MCP y modo experto
+
+- **Modo agente** (encendido por defecto): su IA local puede usar **herramientas MCP** para hacer cosas de verdad
+  (leer y escribir archivos, manejar un navegador…), encadenándolas. Lo delicado (escribir, borrar, enviar, ejecutar…)
+  te pregunta antes: pulsa «Sí, hazlo» o dile «sí» / «no». Necesita un modelo de Ollama que sepa usar herramientas
+  (`qwen3:14b`, `gpt-oss:20b`…). «Capri, desactiva el modo agente» / «activa el modo agente».
+- **Herramientas**: en `mcp.json` (carpeta de Capri; se crea solo la primera vez con «archivos» y «navegador»).
+  Hay miles ya hechas: [modelcontextprotocol/servers](https://github.com/modelcontextprotocol/servers), smithery.ai, mcp.so.
+  Se añaden con el mismo formato que Claude Desktop. «Capri, ¿qué herramientas tienes?»
+- **Modo experto**: «Capri, modo experto» hace que piense Claude Code (si lo tienes instalado), mucho más capaz para
+  tareas complicadas. «Capri, modo normal» vuelve a su IA local.
+
 ## Hazla tuya
 
 Las órdenes al momento están en `src/renderer/js/actions.js` (las frases) y `src/main/actions.js` (lo que hacen):

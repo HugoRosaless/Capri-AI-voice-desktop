@@ -63,5 +63,9 @@ contextBridge.exposeInMainWorld('host', {
   focusOverlay: (on) => ipcRenderer.send('overlay:focus', Boolean(on)),
   actions: (intent) => ipcRenderer.invoke('actions:run', intent),
   say: (text) => ipcRenderer.invoke('voice:say', text),
+  onAgentConfirm: on('agent:confirm'),
+  agentAnswer: (cid, ok) => ipcRenderer.send('agent:answer', { cid, ok: Boolean(ok) }),
+  onChatProgress: on('chat:progress'),
+  mcpTools: () => ipcRenderer.invoke('mcp:tools'),
   stopSpeaking: () => ipcRenderer.invoke('voice:stop'),
 });

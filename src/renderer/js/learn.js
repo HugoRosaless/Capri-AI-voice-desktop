@@ -54,6 +54,35 @@ export class Learner {
       return { ok: true, line: 'Vale, vuelvo a hablarte en voz alta.' };
     }
 
+    // cerebro: modo experto (Claude Code), modo normal (su IA local), modo agente (herramientas MCP)
+    if (/^(?:activa |pon |ponte en |cambia a )?(?:el )?modo experto$/.test(text)) {
+      const r = await this.host.useProvider({ provider: 'claude' }).catch((e) => ({ ok: false, error: e.message }));
+      this.chat.close?.();
+      return r.ok
+        ? { ok: true, line: 'Modo experto: ahora piensa Claude Code y puede trabajar de verdad en tu PC. Para volver: «Capri, modo normal».' }
+        : { ok: false, line: `No puedo pasar a modo experto: ${r.error || 'no encuentro Claude Code'}. Instálalo y vuelve a probar.` };
+    }
+    if (/^(?:activa |pon |vuelve al |vuelve a |cambia a )?(?:el )?modo normal$/.test(text)) {
+      const r = await this.host.useProvider({ provider: 'ollama' }).catch((e) => ({ ok: false, error: e.message }));
+      await this.host.setConfig({ agentMode: true });
+      this.chat.close?.();
+      return { ok: r.ok, line: r.ok ? 'Modo normal: vuelvo a pensar con mi IA local (con mis herramientas).' : `No puedo volver: ${r.error || 'Ollama no responde'}.` };
+    }
+    if (/^(?:desactiva|quita|apaga) (?:el )?modo agente$/.test(text)) {
+      await this.host.setConfig({ agentMode: false });
+      return { ok: true, line: 'Modo agente apagado: solo charlo (y las órdenes de siempre).' };
+    }
+    if (/^(?:activa|pon|enciende) (?:el )?modo agente$/.test(text)) {
+      await this.host.setConfig({ agentMode: true });
+      return { ok: true, line: 'Modo agente encendido: puedo usar mis herramientas cuando haga falta.' };
+    }
+    if (/^(?:que|cuales) herramientas tienes|que (?:mas )?(?:puedes|sabes) hacer con (?:tus )?herramientas/.test(text)) {
+      const r = await this.host.mcpTools?.().catch(() => null);
+      const list = Object.entries(r?.servers || {}).map(([k, n]) => `${k} (${n})`);
+      if (!list.length) return { ok: true, line: `Ahora mismo no tengo herramientas cargadas. Se añaden en ${r?.file || 'mcp.json'}.` };
+      return { ok: true, line: `Tengo: ${list.join(', ')}. Modo agente ${r.agentMode ? 'encendido' : 'apagado'}, pensando con ${r.provider === 'claude' ? 'Claude Code' : r.model}.` };
+    }
+
     // recuerdos
     if (/^(?:olvida|borra) (?:todo )?lo que (?:sabes|has aprendido) de mi$/.test(text)) {
       this.learned = [];
@@ -163,7 +192,7 @@ export class Learner {
   personal() {
     const out = [
       // que no finja: lo que hace de verdad lo hace el programa antes de preguntarle a ella
-      'Important: you cannot press buttons, open apps, activate modes or change anything on the PC by yourself. Never say you did, are doing or will do something on the PC (opening, activating, closing, betting…). If the user asks for an action and nothing was done, say you do not know how to do that yet and that they can teach you: «Capri, cuando diga X, haz Y».',
+      'Important: you can only do things on the PC through the tools you are given in this conversation (if any). Never say you did something that no tool confirmed. If the user asks for an action you have no tool for and nothing was done, say you do not know how to do that yet and that they can teach you («Capri, cuando diga X, haz Y») or give you tools (mcp.json).',
     ];
     if (this.macros.length) out.push(`Commands the user has taught you (they run when the user says them): ${this.macros.map((m) => `«${m.trigger}»`).join(', ')}.`);
     if (this.learned.length) out.push(`Things you have learned about the user over time (use them naturally when relevant, never recite the list):\n${this.learned.map((m) => `- ${m}`).join('\n')}`);

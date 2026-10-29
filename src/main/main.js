@@ -17,6 +17,8 @@ const llm = require('./llm');
 const setup = require('./setup');
 const apps = require('./apps');
 const launch = require('./launch');
+const mcp = require('./mcp');     // herramientas MCP (mcp.json)
+const agent = require('./agent'); // modo agente: su IA usa esas herramientas
 const actions = require('./actions'); // órdenes al momento: webs, YouTube, lo que tienes delante, pestañas, escribir, apagar
 const { ASSISTANTS, assistant } = require('./assistants');
 const activeAssistant = () => assistant(config.load().assistant); // Claude Code or Codex
@@ -267,6 +269,24 @@ function placeArea() {
     return null;
   }
 }
+
+// Registro de Capri (capri.log en su carpeta): MCP, modo agente…
+function capriLog(msg) {
+  try { fs.appendFileSync(path.join(ROOT, 'capri.log'), `${new Date().toISOString().slice(0, 19).replace('T', ' ')} ${msg}\n`); } catch {}
+}
+
+// Modo agente: preguntar «¿puedo…?» al usuario (en su chat, o por voz) y esperar su respuesta
+const confirms = new Map(); // cid -> resolve
+let confirmSeq = 0;
+function askConfirm(id, question) {
+  const cid = `${id}-${++confirmSeq}`;
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { confirms.delete(cid); resolve(false); }, 90000);
+    confirms.set(cid, (ok) => { clearTimeout(timer); confirms.delete(cid); resolve(Boolean(ok)); });
+    overlay?.webContents.send('agent:confirm', { cid, id, question });
+  });
+}
+let agentWarned = false;
 
 function sendCommand(name, payload = {}) {
   overlay?.webContents.send('capri:command', { name, ...payload });
@@ -682,6 +702,21 @@ function registerIpc() {
         overlay?.webContents.send('chat:delta', { id, text });
       };
       const cfg = config.load();
+      // modo agente: su IA local puede usar las herramientas MCP (archivos, navegador…)
+      if (cfg.provider === 'ollama' && cfg.agentMode !== false && mcp.tools().length && !String(id).startsWith('learn-')) {
+        try {
+          const text = await agent.run({
+            model: pickModel(cfg), messages, signal: abort.signal,
+            confirm: (q) => askConfirm(id, q),
+            progress: (t) => overlay?.webContents.send('chat:progress', { id, text: t }),
+          });
+          return { ok: true, text };
+        } catch (err) {
+          if (abort.signal.aborted) throw err;
+          if (!agent.noTools(err)) throw err;
+          if (!agentWarned) { agentWarned = true; capriLog(`modo agente: el modelo ${pickModel(cfg)} no sabe usar herramientas (prueba qwen3:14b o gpt-oss:20b)`); }
+        }
+      }
       const text = await chatWithFallback(cfg, messages, send, abort.signal, () => streamed);
       if (cfg.provider === 'claude') saveMemory({ claude: llm.claudeMemory() });
       return { ok: true, text };
@@ -770,6 +805,12 @@ function registerIpc() {
     return voiceCall('say', { text: String(text || '').slice(0, 1500) });
   });
   ipcMain.handle('voice:stop', () => voiceCall('stop'));
+  ipcMain.on('agent:answer', (_e, { cid, ok }) => confirms.get(cid)?.(ok));
+  ipcMain.handle('mcp:tools', () => {
+    const by = {};
+    for (const t of mcp.tools()) by[t.server] = (by[t.server] || 0) + 1;
+    return { servers: by, file: mcp.configFile(ROOT), agentMode: config.load().agentMode !== false, provider: config.load().provider, model: pickModel() };
+  });
   ipcMain.handle('actions:run', (_e, intent) => actions.run(intent, { overlay, area: placeArea() }));
   // typing to her: the overlay takes the keyboard while the chat is open, and gives it back after
   ipcMain.on('overlay:focus', (_e, on) => {
@@ -960,6 +1001,7 @@ function main() {
       onVoice: ({ text, heard }) => sendCommand('voice', { text, heard }),
     });
     startEar();
+    mcp.start(ROOT, capriLog); // herramientas MCP de mcp.json (sin bloquear el arranque)
     // accesos directos «Capri» con su icono (menú Inicio y escritorio) para abrirla y anclarla
     if (process.platform === 'win32') {
       try {
@@ -1006,6 +1048,7 @@ function main() {
   });
 
   app.on('will-quit', () => {
+    mcp.stop();
     stopEar();
     globalShortcut.unregisterAll();
     windowWatch?.stop();

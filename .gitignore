@@ -20,3 +20,5 @@ voice/voz_referencia.wav
 voice/*.wav
 _copia_*/
 desktop.ini
+mcp.json
+capri.log

@@ -699,6 +699,7 @@ async function boot() {
         const said = cmd.text.toLowerCase();
         if (said === lastHeard.text && Date.now() - lastHeard.at < 4000) break;
         lastHeard = { text: said, at: Date.now() };
+        if (chat.voiceConfirm(cmd.text)) break;           // «sí» / «no» a un «¿puedo…?» del modo agente
         // webs, YouTube, lo que tienes delante, pestañas, escribir, apagar… al momento, sin abrir su chat
         // órdenes enseñadas / su voz / recuerdos, y las órdenes de al momento, sin abrir su chat
         if (!chat.open) {
