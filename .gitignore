@@ -1,0 +1,22 @@
+node_modules/
+dist/
+out/
+*.log
+.DS_Store
+Thumbs.db
+
+# local debug captures
+captures/
+
+# el oido de Capri (voice/)
+voice/model/
+voice/oido.log
+voice/config.json
+__pycache__/
+voice/whisper/
+voice/tts_models/
+voice/muestras/
+voice/voz_referencia.wav
+voice/*.wav
+_copia_*/
+desktop.ini
